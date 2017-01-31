@@ -52,8 +52,9 @@ def net(image, mirror_padding=False,reuse=False):
                 concat_layer = tf.concat(3, [prev_layer_list[-i-1], prev_layer])
                 current_layer = conv_tranpose_layer(concat_layer, num_filters=CONV_UP_NUM_FILTERS[i],
                                                     filter_size=CONV_UP_KERNEL_SIZES[i], strides=CONV_UP_STRIDES[i],
-                                                    with_bias=True,
-                                                    mirror_padding=mirror_padding, norm='batch_norm', name='conv_up_%d' %i, reuse=reuse)
+                                                    with_bias=True, elu=True if i != len(CONV_UP_NUM_FILTERS) else False,
+                                                    mirror_padding=mirror_padding, norm='batch_norm' if i != len(CONV_UP_NUM_FILTERS) else '', name='conv_up_%d' %i, reuse=reuse)
+                # TODO: maybe I should change conv transpose to nn resize + conv layer. It's not causing trouble though.
                 prev_layer = current_layer
             else:
                 current_layer = conv_layer(prev_layer, num_filters=CONV_UP_NUM_FILTERS[i],
@@ -64,19 +65,34 @@ def net(image, mirror_padding=False,reuse=False):
             conv_up_list.append(current_layer)
 
         # Do a final convolution with output dimension = 3 and stride 1.
-        bw = conv_layer(prev_layer, num_filters=CONV_UP_NUM_FILTERS[-1],
+        i = len(CONV_UP_NUM_FILTERS) - 1
+        layer_to_be_concatenated_shape = map(lambda i: i.value, prev_layer_list[-i - 1].get_shape())
+        prev_layer_shape = map(lambda i: i.value, prev_layer.get_shape())
+        if prev_layer_shape[1] != layer_to_be_concatenated_shape[1] or prev_layer_shape[2] != \
+                layer_to_be_concatenated_shape[2]:
+            if not (abs(prev_layer_shape[1] - layer_to_be_concatenated_shape[1]) <= 3 and abs(
+                        prev_layer_shape[2] - layer_to_be_concatenated_shape[2]) <= 3):
+                raise AssertionError('The layers to be concatenated differ too much in shape. Something is '
+                                     'wrong. Their shapes are: %s and %s'
+                                     % (str(prev_layer_shape), str(layer_to_be_concatenated_shape)))
+            prev_layer = tf.image.resize_nearest_neighbor(prev_layer, [layer_to_be_concatenated_shape[1],
+                                                                       layer_to_be_concatenated_shape[2]])
+        concat_layer = tf.concat(3, [prev_layer_list[-i - 1], prev_layer])
+        final = conv_layer(concat_layer, num_filters=CONV_UP_NUM_FILTERS[-1],
                    filter_size=CONV_UP_KERNEL_SIZES[-1], strides=CONV_UP_STRIDES[-1],
                    with_bias=True,
-                   mirror_padding=mirror_padding, norm='', name='bw', reuse=reuse)
+                   mirror_padding=mirror_padding, norm='', name='conv_up_%d' %(len(CONV_UP_NUM_FILTERS) - 1), reuse=reuse)
         # Do sanity check.
-        bw_shape = bw.get_shape().as_list()
+        #
+        # final = prev_layer
+        bw_shape = final.get_shape().as_list()
         if not (image_shape[1] == bw_shape[1] and image_shape[2] == bw_shape[2]):
-            bw = tf.image.resize_nearest_neighbor(bw, [image_shape[1], image_shape[2]])
-            bw_shape = bw.get_shape().as_list()
+            final = tf.image.resize_nearest_neighbor(final, [image_shape[1], image_shape[2]])
+            bw_shape = final.get_shape().as_list()
         if not (image_shape[0] == bw_shape[0] and image_shape[1] == bw_shape[1] and image_shape[2] == bw_shape[2]):
             print('image_shape and bw_shape are different. image_shape = %s and bw_shape = %s' %(str(image_shape), str(bw_shape)))
             raise AssertionError
-        return bw
+        return final
 
 
 def get_net_all_variables():

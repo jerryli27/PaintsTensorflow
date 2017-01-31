@@ -96,6 +96,8 @@ def color_sketches_net(height, width, iterations, batch_size, content_weight, tv
                 bw_output = unet_color_util.net(input_concatenated)
             elif generator_network == 'unet_bw':
                 assert input_mode == 'color' and not use_adversarial_net and not use_hint
+                # This step is not necessary but kept to be in sync with chainer repo.
+                input_concatenated = (input_concatenated - 128 ) / 128
                 bw_output = unet_bw_util.net(input_concatenated)
             elif generator_network == 'backprop':
                 assert input_mode == 'sketch'
@@ -112,6 +114,8 @@ def color_sketches_net(height, width, iterations, batch_size, content_weight, tv
                 bw_output = unet_color_util.net(input_images)
             elif generator_network == 'unet_bw':
                 assert input_mode == 'color' and not use_adversarial_net and not use_hint
+                # This step is not necessary but kept to be in sync with chainer repo.
+                input_images = (input_images - 128 ) / 128
                 bw_output = unet_bw_util.net(input_images)
             elif generator_network == 'backprop':
                 assert input_mode == 'sketch'
@@ -309,7 +313,8 @@ def color_sketches_net(height, width, iterations, batch_size, content_weight, tv
                     if generator_network!= 'unet_bw':
                         generated_image = np.array([cv2.cvtColor(generated_bw[0,...], cv2.COLOR_YUV2RGB)])
                     else:
-                        generated_image = generated_bw
+                        # This step is not necessary but kept to be in sync with chainer repo.
+                        generated_image = generated_bw * 255
                     yield (iterator, generated_image)
 
             else:

@@ -153,7 +153,7 @@ def batch_norm(input_layer, name='', reuse=False):
         mean, variance = tf.nn.moments(input_layer, [0, 1, 2])
         # NOTE: Tensorflow norm has some issues when the actual variance is near zero. I have to apply abs on it.
         variance = tf.abs(variance)
-        variance_epsilon = 0.001
+        variance_epsilon = 0.0000001
         num_channels = input_layer.get_shape().as_list()[3]
         scale = tf.get_variable('scale', [num_channels], tf.float32, tf.random_uniform_initializer())
         offset = tf.get_variable('offset', [num_channels], tf.float32, tf.constant_initializer())
