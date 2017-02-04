@@ -104,7 +104,8 @@ def color_sketches_net(height, width, iterations, batch_size, content_weight, tv
             elif generator_network == 'backprop':
                 assert input_mode == 'sketch'
                 color_output = tf.get_variable('backprop_input_var',shape=[batch_size, input_shape[1], input_shape[2], 3],
-                                                   initializer=tf.random_normal_initializer()) + 0 * input_images
+                                                   initializer=tf.random_normal_initializer(mean=128,stddev=10.0)) + 0 * input_images
+                sketch_output = lnet_util.net((color_output - 128) / 128)  # This is the reconstructed sketch from the color output.
             else:
                 # TODO: change the error message.
                 raise AssertionError("Please input a valid generator network name. Possible options are: TODO. Got: %s"
@@ -147,7 +148,7 @@ def color_sketches_net(height, width, iterations, batch_size, content_weight, tv
             weight_decay_loss_non_adv = conv_util.weight_decay_loss(scope='unet') * weight_decay_lambda
             # This is only for unet_color, not for training the lnet,
             sketch_expected_output = lnet_util.net((color_expected_output - 128) / 128, reuse=True)
-            sketch_reconstruct_loss_non_adv = tf.reduce_mean(tf.abs(sketch_output - sketch_expected_output)) * sketch_reconstruct_weight
+            sketch_reconstruct_loss_non_adv = tf.reduce_mean(tf.abs(sketch_output - sketch_expected_output)) * sketch_reconstruct_weight * 0 #TODO: testing. take
 
             generator_loss_non_adv = color_loss_non_adv + weight_decay_loss_non_adv + sketch_reconstruct_loss_non_adv
             # TODO: add loss from sketch. That is, convert both generated and real colored image into sketches and compute their mean difference.
@@ -330,9 +331,10 @@ def color_sketches_net(height, width, iterations, batch_size, content_weight, tv
                     generated_bw = color_output.eval(feed_dict=feed_dict)
                     iterator += 1
 
-                    # There might be a bug here since generated_bw is 4d.
                     if generator_network!= 'lnet':
                         # Whenever using cv2.cvtColor, be careful not to use float values... It gives out wierd answers.
+                        print(generated_bw[0,0,0:5,:])
+                        print(content_image[0,0,0:5,:])
                         generated_image = np.array([cv2.cvtColor(np.asarray(generated_bw[0,...], dtype=np.uint8), cv2.COLOR_YUV2RGB)])
                         # generated_image = image_sketches[...,:1]
                     else:

@@ -72,10 +72,10 @@ class TestImageToSketchesUtil(unittest.TestCase):
 
             sketch,img = generate_training_image_pair(sketch, img)
 
-            # cv2.imshow('Input', cv2.cvtColor(img, cv2.COLOR_YUV2BGR).astype(np.uint8))
-            # cv2.imshow('Sketch', sketch[...,0].astype(np.uint8))
-            # cv2.imshow('Hint', cv2.cvtColor(sketch[...,1:], cv2.COLOR_YUV2BGR).astype(np.uint8))
-            # cv2.waitKey(0)
+            cv2.imshow('Input', cv2.cvtColor(img, cv2.COLOR_YUV2BGR).astype(np.uint8))
+            cv2.imshow('Sketch', sketch[...,0].astype(np.uint8))
+            cv2.imshow('Hint', cv2.cvtColor(sketch[...,1:], cv2.COLOR_YUV2BGR).astype(np.uint8))
+            cv2.waitKey(0)
 
 
 if __name__ == '__main__':

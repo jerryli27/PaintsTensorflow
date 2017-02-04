@@ -5,7 +5,7 @@
 
 from general_util import *
 
-learning_rate=0.01 # if colorful_img model, the learning rate the paper was using was 3 * 10^-5. They did not
+learning_rate=5 # if colorful_img model, the learning rate the paper was using was 3 * 10^-5. They did not
 # saytheir batch size.
 # iterations=800000# 800000
 epochs = 1000
@@ -22,7 +22,7 @@ do_restore_and_train = False  # True
 do_restore_and_generate = False
 use_adversarial_net = False
 # use_adversarial_net_real = True
-use_hint = True
+use_hint = False # True
 test_img = '20750360_p0_128.png'#u'/home/ubuntu/pixiv/pixiv_testing/骨董屋・三千世界の女主人_12746957.jpg'
 # #'source_compressed/chicago.jpg'
 test_img_hint = '20750360_p0_128_hint.png'
@@ -49,7 +49,7 @@ if not os.path.exists(model_save_dir):
 # NOTE: learning rate is a float !!! not an int. so use %f, not %d... That was the bug that causes the model not to train at all when I have lr < 1
 # python_path = '/home/xor/anaconda2/bin/python'
 
-os.system('/home/xor/anaconda2/bin/python ~/PycharmProjects/PaintsTensorflow/color_sketches.py --learning_rate=%f --num_epochs=%d '
+os.system('python ~/PycharmProjects/PaintsTensorflow/color_sketches.py --learning_rate=%f --num_epochs=%d '
           '--batch_size=%d --generator_network=%s --output_mode=%s --input_mode=%s --preprocessed_folder=%s '
           '--preprocessed_file_path_list=%s '
           '--content_weight=%d --checkpoint_iterations=%d --width=%d --height=%d --checkpoint_output=%s --test_img=%s --test_img_hint=%s --output=%s --model_save_dir=%s --print_iterations=%d %s %s %s %s'
