@@ -95,7 +95,7 @@ def generate_hint_from_image(img, max_num_hint = 15, min_num_hint = 5):
 
 def generate_training_image_pair(image1, image2, train = False, minimize=False, log=False, leak=(0,0), bin_r=0.9, dtype=np.float32):
     # I didn't add uint8 constraint at first then I found some negative yuv values which is unusuall. Trying uint8 ...
-    # I remember cv2 in float mode was causing problems in the past.
+    # I remember cv2 in float mode was causing problems in the past. Yep that was it
     image2 = cv2.cvtColor(np.asarray(image2, np.uint8), cv2.COLOR_RGB2YUV)
 
     if train and np.random.rand() < 0.2:

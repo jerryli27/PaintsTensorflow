@@ -20,7 +20,7 @@ def net(image, reuse=False):
         for i in range(len(CONV_DOWN_NUM_FILTERS)):
             # Do not normalize the first layer. According to https://arxiv.org/abs/1511.06434.
             current_layer = conv_layer(prev_layer, num_filters=CONV_DOWN_NUM_FILTERS[i],
-                                       filter_size=CONV_DOWN_KERNEL_SIZES[i], strides=CONV_DOWN_STRIDES[i],
+                                       filter_size=CONV_DOWN_KERNEL_SIZES[i], strides=CONV_DOWN_STRIDES[i], elu=True,
                                        mirror_padding=False, norm='batch_norm' if i != 0 else '', name='conv_down_%d' %i, reuse=reuse)
             prev_layer = current_layer
             prev_layer_list.append(current_layer)

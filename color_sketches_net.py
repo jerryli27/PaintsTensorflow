@@ -148,7 +148,7 @@ def color_sketches_net(height, width, iterations, batch_size, content_weight, tv
             weight_decay_loss_non_adv = conv_util.weight_decay_loss(scope='unet') * weight_decay_lambda
             # This is only for unet_color, not for training the lnet,
             sketch_expected_output = lnet_util.net((color_expected_output - 128) / 128, reuse=True)
-            sketch_reconstruct_loss_non_adv = tf.reduce_mean(tf.abs(sketch_output - sketch_expected_output)) * sketch_reconstruct_weight * 0 #TODO: testing. take
+            sketch_reconstruct_loss_non_adv = tf.reduce_mean(tf.abs(sketch_output - sketch_expected_output)) * sketch_reconstruct_weight
 
             generator_loss_non_adv = color_loss_non_adv + weight_decay_loss_non_adv + sketch_reconstruct_loss_non_adv
             # TODO: add loss from sketch. That is, convert both generated and real colored image into sketches and compute their mean difference.
@@ -224,13 +224,16 @@ def color_sketches_net(height, width, iterations, batch_size, content_weight, tv
                     # TODO: change this
                     stderr.write(' generator l2 loss: %g\n' % generator_loss_non_adv.eval(feed_dict=feed_dict))
                     stderr.write('       sketch loss: %g\n' % sketch_reconstruct_loss_non_adv.eval(feed_dict=feed_dict))
-                    if generator_network == 'unet_both' or generator_network == 'colorful_img_both':
-                        stderr.write('           bw loss: %g\n' % color_loss_non_adv.eval(feed_dict=feed_dict))
+                    stderr.write('  w decay gen loss: %g\n' % weight_decay_loss_non_adv.eval(feed_dict=feed_dict))
+                    # if generator_network == 'unet_both' or generator_network == 'colorful_img_both':
+                    #     stderr.write('           bw loss: %g\n' % color_loss_non_adv.eval(feed_dict=feed_dict))
                         # stderr.write('           ab loss: %g\n' % ab_loss_non_adv.eval(feed_dict=feed_dict))
                     if use_adversarial_net:
                         stderr.write('   adv_from_i loss: %g\n' % adv_loss_from_i.eval(feed_dict=adv_feed_dict))
                         stderr.write('   adv_from_g loss: %g\n' % adv_loss_from_g.eval(feed_dict=adv_feed_dict))
                         stderr.write('generator adv loss: %g\n' % generator_loss_through_adv.eval(feed_dict=adv_feed_dict))
+                        stderr.write('  w decay adv loss: %g\n' % weight_decay_loss_adv.eval(feed_dict=adv_feed_dict))
+
 
 
         # Optimization
