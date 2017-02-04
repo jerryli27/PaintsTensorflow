@@ -14,18 +14,18 @@ content_weight=5
 checkpoint_iterations=20
 height = 128
 width = 128
-generator_network='unet_bw' # 'unet_color'
-input_mode ='color' # 'sketch'
+generator_network='backprop' # 'unet_color'
+input_mode ='sketch' # 'sketch'
 output_mode = 'rgb'
 print_iteration = 1
 do_restore_and_train = False  # True
 do_restore_and_generate = False
 use_adversarial_net = False
 # use_adversarial_net_real = True
-use_hint = False
+use_hint = True
 test_img = '20750360_p0_128.png'#u'/home/ubuntu/pixiv/pixiv_testing/骨董屋・三千世界の女主人_12746957.jpg'
 # #'source_compressed/chicago.jpg'
-test_img_hint = '378688_256_hint.png'
+test_img_hint = '20750360_p0_128_hint.png'
 
 do_restore_and_train_string = '--do_restore_and_train' if do_restore_and_train else ''
 do_restore_and_generate_string = '--do_restore_and_generate' if do_restore_and_generate else ''
