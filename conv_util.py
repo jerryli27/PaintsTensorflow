@@ -55,7 +55,7 @@ def conv_layer(net, num_filters, filter_size, strides, with_bias = True, elu=Tru
                                       'or simply leave it blank')
         if elu:
             # In some papers relu or leaky relu were also used instead of elu. There shouldn't be a big difference.
-            net = tf.nn.elu(net)
+            net = tf.nn.relu(net)
 
         return net
 
@@ -77,7 +77,7 @@ def conv_tranpose_layer(net, num_filters, filter_size, strides, with_bias = True
         strides_shape = [1, strides, strides, 1]
 
         if mirror_padding:
-            net = conv2d_transpose_mirror_padding(net, weights_init, None, tf_shape, filter_size, stride=strides)
+            net = conv2d_transpose_mirror_padding(net, weights_init, bias_init, tf_shape, filter_size, stride=strides)
         else:
             net = tf.nn.conv2d_transpose(net, weights_init, tf_shape, strides_shape, padding='SAME')
             if bias_init:
@@ -93,7 +93,7 @@ def conv_tranpose_layer(net, num_filters, filter_size, strides, with_bias = True
             raise NotImplementedError('Please specify a valid normalization method: "instance_norm", "batch_norm", '
                                       'or simply leave it blank')
         if elu:
-            net = tf.nn.elu(net)
+            net = tf.nn.relu(net)
         return net
 
 
@@ -157,6 +157,8 @@ def batch_norm(input_layer, name='', reuse=False):
         num_channels = input_layer.get_shape().as_list()[3]
         scale = tf.get_variable('scale', [num_channels], tf.float32, tf.random_uniform_initializer())
         offset = tf.get_variable('offset', [num_channels], tf.float32, tf.constant_initializer())
+        # variance = tf.get_variable('variance', [num_channels], tf.float32, tf.random_uniform_initializer())
+        # mean = tf.get_variable('mean', [num_channels], tf.float32, tf.constant_initializer())
         return_val = tf.nn.batch_normalization(input_layer, mean, variance, offset, scale, variance_epsilon, name=name)
         return return_val
 

@@ -25,7 +25,7 @@ def net(image, mirror_padding=False,reuse=False):
     prev_layer_list = [image]
     conv_up_list = []
 
-    with tf.variable_scope('unet', reuse=reuse):
+    with tf.variable_scope('lnet', reuse=reuse):
         for i in range(len(CONV_DOWN_NUM_FILTERS)):
             current_layer = conv_layer(prev_layer, num_filters=CONV_DOWN_NUM_FILTERS[i],
                                        filter_size=CONV_DOWN_KERNEL_SIZES[i], strides=CONV_DOWN_STRIDES[i],
@@ -80,7 +80,7 @@ def net(image, mirror_padding=False,reuse=False):
         concat_layer = tf.concat(3, [prev_layer_list[-i - 1], prev_layer])
         final = conv_layer(concat_layer, num_filters=CONV_UP_NUM_FILTERS[-1],
                    filter_size=CONV_UP_KERNEL_SIZES[-1], strides=CONV_UP_STRIDES[-1],
-                   with_bias=True,
+                   with_bias=True, elu=False,
                    mirror_padding=mirror_padding, norm='', name='conv_up_%d' %(len(CONV_UP_NUM_FILTERS) - 1), reuse=reuse)
         # Do sanity check.
         #
@@ -97,6 +97,6 @@ def net(image, mirror_padding=False,reuse=False):
 
 def get_net_all_variables():
     if '0.12.0' in tf.__version__:
-        return tf.get_collection(tf.GraphKeys.GLOBAL_VARIABLES, scope='unet')
+        return tf.get_collection(tf.GraphKeys.GLOBAL_VARIABLES, scope='lnet')
     else:
-        return tf.get_collection(tf.GraphKeys.VARIABLES, scope='unet')
+        return tf.get_collection(tf.GraphKeys.VARIABLES, scope='lnet')

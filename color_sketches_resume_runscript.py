@@ -17,20 +17,20 @@ epochs = 1000
 batch_size=1  # The larger the better.
 content_weight=5
 checkpoint_iterations=20
-height = 128
-width = 128
-generator_network='unet_bw' # 'unet_color'
-input_mode ='color' # 'sketch'
+height = 176 * 2#int(1.0 * 3506 / 2452  * 128)# int(1.0 * 600 / 445  * 128)
+width = 128 * 2
+generator_network= 'unet_color' #'lnet' #
+input_mode = 'raw_sketch' # 'sketch' # 'color' #
 output_mode = 'rgb'
 print_iteration = 1
 do_restore_and_train = False  # True
 do_restore_and_generate = True
 use_adversarial_net = False
 # use_adversarial_net_real = True
-use_hint = False
-test_img = '20750360_p0_128.png'#u'/home/ubuntu/pixiv/pixiv_testing/骨董屋・三千世界の女主人_12746957.jpg'
+use_hint = True
+test_img = u'"/home/xor/pixiv_images/color/Rella (163536)/14080177_p0 - らくがき.jpg"'.encode('utf-8') # '20750360_p0_128.png' # #u'/home/ubuntu/pixiv/pixiv_testing/骨董屋・三千世界の女主人_12746957.jpg'
 # #'source_compressed/chicago.jpg'
-test_img_hint = '378688_256_hint.png'
+test_img_hint = '20750360_p0_128_hint.png'
 
 do_restore_and_train_string = '--do_restore_and_train' if do_restore_and_train else ''
 do_restore_and_generate_string = '--do_restore_and_generate' if do_restore_and_generate else ''
@@ -43,7 +43,7 @@ preprocessed_file_path_list = 'test_images_sketches/image_files_relative_paths_s
 
 checkpoint_output='output_checkpoint/colorsketches-sanity_check-content_%s.jpg'
 output='output/colorsketches-sanity_check-content.jpg'
-model_save_dir='model/lnet_converted/'
+model_save_dir='model/chainer_converted/'
 if not os.path.exists(model_save_dir):
     os.makedirs(model_save_dir) # TODO: add %s content_img_style_weight_mask_string to the model_save_dir
 

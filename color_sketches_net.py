@@ -18,7 +18,7 @@ import colorful_img_network_mod_util
 import colorful_img_network_util
 import sketches_util
 import unet_both_util
-import unet_bw_util
+import lnet_util
 import unet_color_util
 import unet_util
 from general_util import *
@@ -44,7 +44,8 @@ COLORFUL_IMG_NUM_BIN = 6  # Temporary
 def color_sketches_net(height, width, iterations, batch_size, content_weight, tv_weight,
                        learning_rate, generator_network='unet',
                        use_adversarial_net = False, use_hint = False,
-                       adv_net_weight=1.0, sketch_regen_weight = 1.0, weight_decay_lambda=1e-5, print_iterations=None,
+                       adv_net_weight=1.0, weight_decay_lambda=1e-5,
+                       sketch_reconstruct_weight = 10.0 , print_iterations=None,
                        checkpoint_iterations=None, save_dir="model/", do_restore_and_generate=False,
                        do_restore_and_train=False, restore_from_noadv_to_adv = False, preprocessed_folder=None,
                        preprocessed_file_path_list = None,
@@ -73,7 +74,7 @@ def color_sketches_net(height, width, iterations, batch_size, content_weight, tv
     # Before training, make sure everything is set correctly.
     if use_hint:
         assert test_img_hint is not None
-
+    height, width = get_compatible_shape(height, width)
     input_shape = (1, height, width, 3)
     print('The input shape is: %s. Input mode is: %s. Output mode is: %s. Using %s generator network' % (str(input_shape),
           input_mode, output_mode, generator_network))
@@ -84,7 +85,7 @@ def color_sketches_net(height, width, iterations, batch_size, content_weight, tv
 
     # Define tensorflow placeholders and variables.
     with tf.Graph().as_default():
-        input_images = tf.placeholder(tf.float32, shape=[batch_size, input_shape[1], input_shape[2], 1 if generator_network!= 'unet_bw' else 3],
+        input_images = tf.placeholder(tf.float32, shape=[batch_size, input_shape[1], input_shape[2], 1 if generator_network!= 'lnet' else 3],
                                       name='input_sketches' if input_mode=='sketch' else 'input_bw')
 
         if use_hint:
@@ -92,16 +93,17 @@ def color_sketches_net(height, width, iterations, batch_size, content_weight, tv
                                 shape=[batch_size, input_shape[1], input_shape[2], 3], name='input_hint')
             input_concatenated = tf.concat(3, (input_images, input_hint))
             if generator_network == 'unet_color':
-                assert input_mode == 'sketch'
-                bw_output = unet_color_util.net(input_concatenated)
-            elif generator_network == 'unet_bw':
+                assert input_mode == 'sketch' or (input_mode == 'raw_sketch' and do_restore_and_generate)
+                color_output = unet_color_util.net(input_concatenated)
+                sketch_output = lnet_util.net((color_output - 128) / 128)  # This is the reconstructed sketch from the color output.
+            elif generator_network == 'lnet':
                 assert input_mode == 'color' and not use_adversarial_net and not use_hint
                 # This step is not necessary but kept to be in sync with chainer repo.
                 input_concatenated = (input_concatenated - 128 ) / 128
-                bw_output = unet_bw_util.net(input_concatenated)
+                color_output = lnet_util.net(input_concatenated)
             elif generator_network == 'backprop':
                 assert input_mode == 'sketch'
-                bw_output = tf.get_variable('backprop_input_var',shape=[batch_size, input_shape[1], input_shape[2], 3],
+                color_output = tf.get_variable('backprop_input_var',shape=[batch_size, input_shape[1], input_shape[2], 3],
                                                    initializer=tf.random_normal_initializer()) + 0 * input_images
             else:
                 # TODO: change the error message.
@@ -110,20 +112,25 @@ def color_sketches_net(height, width, iterations, batch_size, content_weight, tv
 
         else:
             if generator_network == 'unet_color':
-                assert input_mode == 'sketch'
-                bw_output = unet_color_util.net(input_images)
-            elif generator_network == 'unet_bw':
+                assert input_mode == 'sketch' or (input_mode == 'raw_sketch' and do_restore_and_generate)
+                color_output = unet_color_util.net(input_images)
+                sketch_output = lnet_util.net((color_output - 128) / 128)  # This is the reconstructed sketch from the color output.
+            elif generator_network == 'lnet':
                 assert input_mode == 'color' and not use_adversarial_net and not use_hint
                 # This step is not necessary but kept to be in sync with chainer repo.
                 input_images = (input_images - 128 ) / 128
-                bw_output = unet_bw_util.net(input_images)
+                color_output = lnet_util.net(input_images)
             elif generator_network == 'backprop':
                 assert input_mode == 'sketch'
-                bw_output = tf.get_variable('backprop_input_var',shape=[batch_size, input_shape[1], input_shape[2], 3],
+                color_output = tf.get_variable('backprop_input_var',shape=[batch_size, input_shape[1], input_shape[2], 3],
                                                    initializer=tf.random_normal_initializer()) + 0 * input_images
+                sketch_output = lnet_util.net((color_output - 128) / 128)  # This is the reconstructed sketch from the color output.
             else:
                 raise AssertionError("Please input a valid generator network name. Possible options are: TODO. Got: %s"
                                      % (generator_network))
+
+        generator_all_var = unet_util.get_net_all_variables()
+        sketch_reconstruct_all_var = lnet_util.get_net_all_variables()
 
         if not do_restore_and_generate:
             assert preprocessed_folder is not None and preprocessed_file_path_list is not None and \
@@ -131,14 +138,18 @@ def color_sketches_net(height, width, iterations, batch_size, content_weight, tv
             learning_rate_init = tf.constant(learning_rate)
             learning_rate_var = tf.get_variable(name='learning_rate_var', trainable=False,
                                                     initializer=learning_rate_init)
-            bw_expected_output = tf.placeholder(tf.float32,
-                                             shape=[batch_size, input_shape[1], input_shape[2], 3 if generator_network!= 'unet_bw' else 1],
-                                             name='bw_expected_output')
+            color_expected_output = tf.placeholder(tf.float32,
+                                             shape=[batch_size, input_shape[1], input_shape[2], 3 if generator_network!= 'lnet' else 1],
+                                             name='color_expected_output')
             # Use the mean difference loss. Used to use tf.nn.l2_loss. Don't know how big of a difference that makes.
-            # bw_loss_non_adv =tf.nn.l2_loss(bw_output - bw_expected_output) / batch_size
-            bw_loss_non_adv = tf.reduce_mean(tf.abs(bw_output - bw_expected_output))
-            weight_decay_loss_non_adv = conv_util.weight_decay_loss(scope='unet')
-            generator_loss_non_adv = bw_loss_non_adv + weight_decay_loss_non_adv * weight_decay_lambda
+            # color_loss_non_adv =tf.nn.l2_loss(color_output - color_expected_output) / batch_size
+            color_loss_non_adv = tf.reduce_mean(tf.abs(color_output - color_expected_output))
+            weight_decay_loss_non_adv = conv_util.weight_decay_loss(scope='unet') * weight_decay_lambda
+            # This is only for unet_color, not for training the lnet,
+            sketch_expected_output = lnet_util.net((color_expected_output - 128) / 128, reuse=True)
+            sketch_reconstruct_loss_non_adv = tf.reduce_mean(tf.abs(sketch_output - sketch_expected_output)) * sketch_reconstruct_weight
+
+            generator_loss_non_adv = color_loss_non_adv + weight_decay_loss_non_adv + sketch_reconstruct_loss_non_adv
             # TODO: add loss from sketch. That is, convert both generated and real colored image into sketches and compute their mean difference.
 
             # tv_loss = tv_weight * total_variation(image)
@@ -147,17 +158,11 @@ def color_sketches_net(height, width, iterations, batch_size, content_weight, tv
                 adv_net_input = tf.placeholder(tf.float32,
                                                  shape=[batch_size, input_shape[1], input_shape[2], 3], name='adv_net_input')
                 adv_net_prediction_image_input = adv_net_util.net(adv_net_input)
-                adv_net_prediction_generator_input = adv_net_util.net(bw_output, reuse=True)
+                adv_net_prediction_generator_input = adv_net_util.net(color_output, reuse=True)
                 adv_net_all_var = adv_net_util.get_net_all_variables()
 
-                weight_decay_loss_adv= conv_util.weight_decay_loss(scope='adv_net')
+                weight_decay_loss_adv= conv_util.weight_decay_loss(scope='adv_net') * weight_decay_lambda
 
-                if generator_network == 'unet_color' or generator_network == 'unet_bw':
-                    generator_all_var = unet_util.get_net_all_variables()
-                elif generator_network == 'backprop':
-                    pass
-                else:
-                    raise AssertionError("Please input a valid generator network name. Possible options are: TODO.")
 
                 logits_from_i = adv_net_prediction_image_input
                 logits_from_g = adv_net_prediction_generator_input
@@ -166,7 +171,7 @@ def color_sketches_net(height, width, iterations, batch_size, content_weight, tv
                 adv_loss_from_i = tf.reduce_mean(tf.nn.sparse_softmax_cross_entropy_with_logits(logits_from_i, tf.ones([batch_size], dtype=tf.int64))) * adv_net_weight
                 adv_loss_from_g = tf.reduce_mean(tf.nn.sparse_softmax_cross_entropy_with_logits(logits_from_g, tf.zeros([batch_size], dtype=tf.int64))) * adv_net_weight
 
-                adv_loss =  adv_loss_from_i + adv_loss_from_g + weight_decay_loss_adv * weight_decay_lambda
+                adv_loss =  adv_loss_from_i + adv_loss_from_g + weight_decay_loss_adv
                 generator_loss_through_adv = tf.reduce_mean(tf.nn.sparse_softmax_cross_entropy_with_logits(logits_from_g, tf.ones([batch_size], dtype=tf.int64))) * adv_net_weight
                 # Beta1 = 0.5 according to dcgan paper
                 adv_train_step = tf.train.AdamOptimizer(learning_rate_var, beta1=0.5,
@@ -183,7 +188,6 @@ def color_sketches_net(height, width, iterations, batch_size, content_weight, tv
                 with tf.control_dependencies([generator_train_step_through_adv, generator_train_step]):
                     generator_both_train = tf.no_op(name='generator_both_train')
 
-
                 adv_loss_real_sum = scalar_summary("adv_loss_real", adv_loss_from_i)
                 adv_loss_fake_sum = scalar_summary("adv_loss_fake", adv_loss_from_g)
                 adv_loss_weight_decay_sum = scalar_summary("adv_loss_weight_decay", weight_decay_loss_adv)
@@ -191,20 +195,24 @@ def color_sketches_net(height, width, iterations, batch_size, content_weight, tv
                 generator_loss_through_adv_sum = scalar_summary("g_loss_through_adv", generator_loss_through_adv)
                 adv_loss_sum = scalar_summary("adv_loss", adv_loss)
                 generator_loss_l2_sum = scalar_summary("generator_loss_non_adv", generator_loss_non_adv)
-                generator_loss_weight_decay_sum = scalar_summary("generator_loss_weight_decay", weight_decay_loss_non_adv)
+                generator_loss_weight_decay_sum = scalar_summary("generator_loss_weight_decay",
+                                                                 weight_decay_loss_non_adv)
+                sketch_reconstruct_loss_non_adv_sum = scalar_summary("sketch_reconstruct_loss_non_adv",
+                                                                     sketch_reconstruct_loss_non_adv)
 
-
-                g_sum = merge_summary([generator_loss_through_adv_sum, generator_loss_l2_sum, generator_loss_weight_decay_sum])
+                g_sum = merge_summary(
+                    [generator_loss_through_adv_sum, generator_loss_l2_sum, generator_loss_weight_decay_sum,
+                     sketch_reconstruct_loss_non_adv_sum])
                 adv_sum = merge_summary([adv_loss_fake_sum, adv_loss_real_sum, adv_loss_weight_decay_sum, adv_loss_sum])
             else:
                 # optimizer setup
                 # Training using adam optimizer. Setting comes from https://arxiv.org/abs/1610.07629.
                 generator_train_step = tf.train.AdamOptimizer(learning_rate_var, beta1=0.9,
                                        beta2=0.999).minimize(generator_loss_non_adv)
-                generator_loss_l2_sum = scalar_summary("bw_loss_non_adv", generator_loss_non_adv)
+                generator_loss_l2_sum = scalar_summary("color_loss_non_adv", generator_loss_non_adv)
                 generator_loss_weight_decay_sum = scalar_summary("generator_loss_weight_decay", weight_decay_loss_non_adv)
-                g_sum = merge_summary([generator_loss_l2_sum, generator_loss_weight_decay_sum])
-
+                sketch_reconstruct_loss_non_adv_sum = scalar_summary("sketch_reconstruct_loss_non_adv", sketch_reconstruct_loss_non_adv)
+                g_sum = merge_summary([generator_loss_l2_sum, generator_loss_weight_decay_sum, sketch_reconstruct_loss_non_adv_sum])
 
 
             def print_progress(i, feed_dict, adv_feed_dict, last=False):
@@ -214,8 +222,9 @@ def color_sketches_net(height, width, iterations, batch_size, content_weight, tv
                     stderr.write('Learning rate %f\n' % (learning_rate_var.eval()))
                     # TODO: change this
                     stderr.write(' generator l2 loss: %g\n' % generator_loss_non_adv.eval(feed_dict=feed_dict))
+                    stderr.write('       sketch loss: %g\n' % sketch_reconstruct_loss_non_adv.eval(feed_dict=feed_dict))
                     if generator_network == 'unet_both' or generator_network == 'colorful_img_both':
-                        stderr.write('           bw loss: %g\n' % bw_loss_non_adv.eval(feed_dict=feed_dict))
+                        stderr.write('           bw loss: %g\n' % color_loss_non_adv.eval(feed_dict=feed_dict))
                         # stderr.write('           ab loss: %g\n' % ab_loss_non_adv.eval(feed_dict=feed_dict))
                     if use_adversarial_net:
                         stderr.write('   adv_from_i loss: %g\n' % adv_loss_from_i.eval(feed_dict=adv_feed_dict))
@@ -280,8 +289,16 @@ def color_sketches_net(height, width, iterations, batch_size, content_weight, tv
                         content_image = imread(test_img_dir, (input_shape[1], input_shape[2]))
                     content_image = np.array([content_image])
                     if input_mode == 'sketch':
-                        image_sketches = sketches_util.image_to_sketch(content_image)
-                        image_sketches = np.expand_dims(image_sketches, axis=3)
+                        color_expected_output = tf.placeholder(tf.float32,
+                                                               shape=[batch_size, input_shape[1], input_shape[2],
+                                                                      3 if generator_network != 'lnet' else 1],
+                                                               name='color_expected_output')
+                        sketch_expected_output = lnet_util.net((color_expected_output - 128) / 128, reuse=True)
+                        content_image_yuv = cv2.cvtColor(content_image[0,...], cv2.COLOR_RGB2YUV)
+                        image_sketches = sketch_expected_output.eval(feed_dict={color_expected_output:np.array([content_image_yuv])}) * 255
+
+                        # image_sketches = sketches_util.image_to_sketch(content_image)
+                        # image_sketches = np.expand_dims(image_sketches, axis=3)
                     elif input_mode == 'bw':
                         content_image_lab = colorful_img_network_util.rgb_to_lab(content_image)
                         image_sketches = content_image_lab[...,0:1]
@@ -289,6 +306,8 @@ def color_sketches_net(height, width, iterations, batch_size, content_weight, tv
                     elif input_mode == 'color':
                         image_sketches = np.zeros(content_image.shape)
                         # image_sketches = np.expand_dims(rgb2gray(content_image), axis=3)
+                    elif input_mode == 'raw_sketch':
+                        image_sketches = rgb2gray(content_image, keep_dim=True)
                     else:
                         raise AssertionError('Input mode error.')
 
@@ -303,15 +322,19 @@ def color_sketches_net(height, width, iterations, batch_size, content_weight, tv
                         feed_dict = {input_images:image_sketches[..., :1]}
 
                     if use_hint:
-                        image_hint = imread(test_img_hint, (input_shape[1], input_shape[2]), rgba=True)
+                        image_hint = hint_imread(test_img_hint, (input_shape[1], input_shape[2]))
+                        # TODO: testing, delete later.
+                        # image_hint = np.repeat(image_sketches[..., :1],3,axis=3)[0,...]
                         feed_dict[input_hint] = np.array([image_hint])
 
-                    generated_bw = bw_output.eval(feed_dict=feed_dict)
+                    generated_bw = color_output.eval(feed_dict=feed_dict)
                     iterator += 1
 
                     # There might be a bug here since generated_bw is 4d.
-                    if generator_network!= 'unet_bw':
-                        generated_image = np.array([cv2.cvtColor(generated_bw[0,...], cv2.COLOR_YUV2RGB)])
+                    if generator_network!= 'lnet':
+                        # Whenever using cv2.cvtColor, be careful not to use float values... It gives out wierd answers.
+                        generated_image = np.array([cv2.cvtColor(np.asarray(generated_bw[0,...], dtype=np.uint8), cv2.COLOR_YUV2RGB)])
+                        # generated_image = image_sketches[...,:1]
                     else:
                         # This step is not necessary but kept to be in sync with chainer repo.
                         generated_image = generated_bw * 255
@@ -362,8 +385,25 @@ def color_sketches_net(height, width, iterations, batch_size, content_weight, tv
                         sess.run(tf.initialize_variables(var_not_saved))
                         # Now change the saver back to normal
                         saver = tf.train.Saver()
+                        raise NotImplementedError
                 else:
-                    sess.run(tf.initialize_all_variables())
+                    # # In the past I ran this. Now I have lnet which is a pretrained network.
+                    # sess.run(tf.initialize_all_variables())
+
+                    saver = tf.train.Saver(sketch_reconstruct_all_var)
+                    ckpt = tf.train.get_checkpoint_state('model/chainer_converted/')
+                    saver.restore(sess, ckpt.model_checkpoint_path)
+                    # Get variables not in lnet and initialize them
+                    # Get all variables except the generator net and the learning rate
+                    if '0.12.0' in tf.__version__:
+                        all_vars = tf.get_collection(tf.GraphKeys.GLOBAL_VARIABLES)
+                    else:
+                        all_vars = tf.get_collection(tf.GraphKeys.VARIABLES)
+                    var_not_saved = [item for item in all_vars if item not in sketch_reconstruct_all_var]
+                    sess.run(tf.initialize_variables(var_not_saved))
+                    # Now change the saver back to normal
+                    saver = tf.train.Saver()
+
 
                 # Get path to all content images.
 
@@ -418,6 +458,8 @@ def color_sketches_net(height, width, iterations, batch_size, content_weight, tv
                             # image_sketches = np.expand_dims(rgb2gray(content_pre_list), axis=3)
                         elif input_mode == 'color':
                             image_sketches = content_pre_list
+                        elif input_mode == 'raw_sketch':
+                            raise AssertionError('Input mode raw_sketch should not be trained.')
                         else:
                             raise AssertionError('Input mode error.')
                     else:
@@ -441,10 +483,10 @@ def color_sketches_net(height, width, iterations, batch_size, content_weight, tv
 
                     # Do some processing...
                     image_sketches, content_pre_list = sketches_util.generate_training_batch(image_sketches, content_pre_list, train=False)
-                    if generator_network == 'unet_bw':
-                        feed_dict = {bw_expected_output: image_sketches[...,:1]}
+                    if generator_network == 'lnet':
+                        feed_dict = {color_expected_output: image_sketches[...,:1]}
                     else:
-                        feed_dict = {bw_expected_output: content_pre_list}
+                        feed_dict = {color_expected_output: content_pre_list}
 
                     if use_hint:
                         # image_hint = sketches_util.generate_hint_from_image(content_pre_list)

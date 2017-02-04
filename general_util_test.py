@@ -173,6 +173,23 @@ class TestDataUtilMethods(unittest.TestCase):
         expected_answer = np.floor(rgb2gray(np.array(current_image)))
         np.testing.assert_almost_equal(expected_answer, actual_output)
 
+    def test_hint_imread(self):
+        height = 1
+        width = 2
+
+        content_folder = tempfile.mkdtemp()
+        image_path = content_folder + '/image.png'
+        current_image = np.zeros((height, width, 4)) * 255.0
+        current_image[0, 0, :] = np.array([255,255,255,1])
+        scipy.misc.imsave(image_path, current_image)
+
+        content_pre_list = hint_imread(image_path, shape=(height,width))
+        np.testing.assert_almost_equal(hint_imread(image_path), content_pre_list)
+        shutil.rmtree(content_folder)
+        expected_answer = np.array([[[255,128,128],[-512,128,128]]])
+        np.testing.assert_almost_equal(expected_answer, content_pre_list)
+
+
     def test_imread_and_imsave_utf8(self):
         height = 256
         width = 256

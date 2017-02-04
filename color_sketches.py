@@ -138,8 +138,6 @@ def main():
     if not os.path.exists(options.model_save_dir):
         os.makedirs(options.model_save_dir)
 
-    print("TODO: I HAVE NOT IMPLEMENTED SKETCH_LOSS YET")
-
     for iteration, image in color_sketches_net.color_sketches_net(
             height=options.height,
             width=options.width,

@@ -40,7 +40,7 @@ def net(image, mirror_padding=False, reuse=False):
                 layer_to_be_concatenated_shape = map(lambda i: i.value, prev_layer_list[-i-1].get_shape())
                 prev_layer_shape = map(lambda i: i.value, prev_layer.get_shape())
                 if prev_layer_shape[1] != layer_to_be_concatenated_shape[1] or prev_layer_shape[2] != layer_to_be_concatenated_shape[2]:
-                    if not (abs(prev_layer_shape[1] - layer_to_be_concatenated_shape[1]) <= 3 and abs(prev_layer_shape[2] - layer_to_be_concatenated_shape[2]) <= 3):
+                    if not (abs(prev_layer_shape[1] - layer_to_be_concatenated_shape[1]) == 0 and abs(prev_layer_shape[2] - layer_to_be_concatenated_shape[2])== 0):
                         raise AssertionError('The layers to be concatenated differ too much in shape. Something is '
                                              'wrong. Their shapes are: %s and %s'
                                              %(str(prev_layer_shape), str(layer_to_be_concatenated_shape)))
@@ -63,15 +63,14 @@ def net(image, mirror_padding=False, reuse=False):
         final = tf.nn.bias_add(final, bias_init, name='bias_init_bias_added')
         # TODO: Maybe I should add this to make training a little bit easier?
         final = tf.nn.tanh(final) * 150 + 255. / 2
-
+        raise NotImplementedError
         # Do sanity check.
         final_shape = final.get_shape().as_list()
-        if not (image_shape[1] == final_shape[1] and image_shape[2] == final_shape[2]):
-            final = tf.image.resize_nearest_neighbor(final, [image_shape[1], image_shape[2]])
-            final_shape = final.get_shape().as_list()
         if not (image_shape[0] == final_shape[0] and image_shape[1] == final_shape[1] and image_shape[2] == final_shape[2]):
-            print('image_shape and final_shape are different. image_shape = %s and final_shape = %s' %(str(image_shape), str(final_shape)))
-            raise AssertionError
+            raise AssertionError('image_shape and final_shape are different. image_shape = %s and final_shape = %s' %(str(image_shape), str(final_shape)))
+        # if not (image_shape[1] == final_shape[1] and image_shape[2] == final_shape[2]):
+        #     final = tf.image.resize_nearest_neighbor(final, [image_shape[1], image_shape[2]])
+        #     final_shape = final.get_shape().as_list()
 
         return final
 

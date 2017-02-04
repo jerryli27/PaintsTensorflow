@@ -39,7 +39,7 @@ def imread(path, shape=None, bw=False, rgba=False, dtype=np.float32):
         return np.asarray(Image.open(path).convert(convert_format).resize((shape[1], shape[0])), dtype)
 
 
-def cv2imread(path, mode):
+def cv2imread(path, mode, s_size=None):
     """
     This function is a wrapper around cv2.imread. It automatically converts utf8 path names.
     :param path:
@@ -53,9 +53,42 @@ def cv2imread(path, mode):
     else:
         raise AssertionError("Path has to be either string or unicode.")
     img = cv2.imread(unicode_compatible_path,mode)
-    # if img is None:
-    #     img = cv2.imread(unicode_compatible_path[:-4] + '.jpg',mode)
+
+    img = np.asarray(img, np.float32)
+    if s_size is not None:
+        s_size = float(s_size)
+        if img.shape[0] < img.shape[1]:
+            s0 = int(s_size)
+            s1 = int(img.shape[1] * (s_size / img.shape[0]))
+            s1 = s1 - s1 % 16
+        else:
+            s1 = int(s_size)
+            s0 = int(img.shape[0] * (s_size / img.shape[1]))
+            s0 = s0 - s0 % 16
+        img = cv2.resize(img, (s1, s0), interpolation=cv2.INTER_AREA)
     return img
+
+def hint_imread(path, shape=None):
+
+
+    image_ref = cv2imread(path, cv2.IMREAD_UNCHANGED)
+    if shape is not None:
+        assert len(shape) == 2
+        image_ref = cv2.resize(image_ref, (shape[1], shape[0]), interpolation=cv2.INTER_NEAREST)
+    else:
+        shape = (image_ref.shape[0], image_ref.shape[1])
+
+
+
+    b, g, r, a = cv2.split(image_ref)
+    image_ref = cv2.cvtColor(cv2.merge((b, g, r)), cv2.COLOR_BGR2YUV)
+
+    ret = np.concatenate(( np.ones((shape[0],shape[1], 1)) * -512,  np.ones((shape[0],shape[1], 1)) * 128 ,  np.ones((shape[0],shape[1], 1)) * 128),axis=2)
+
+    non_transparent_indices = (a != 0)
+    ret[non_transparent_indices] = image_ref[non_transparent_indices]
+
+    return ret
 
 def imsave(path, img):
     # type: (str, np.ndarray) -> None
@@ -400,8 +433,12 @@ def np_total_variation(image_batch):
                      np.linalg.norm(vertical_diff) / horizontal_diff_num_elements)
     return total_var
 
-def rgb2gray(rgb):
-    return np.dot(rgb[..., :3], [0.299, 0.587, 0.114])
+def rgb2gray(rgb, keep_dim = False):
+    ret = np.dot(rgb[..., :3], [0.299, 0.587, 0.114])
+    if keep_dim:
+        return np.expand_dims(ret, ret.ndim)
+    else:
+        return ret
 
 
 def rgb_to_yuv(image):
@@ -418,3 +455,13 @@ def rgb_to_yuv(image):
     else:
         raise AssertionError('The image must have shape either [height, width, 3] or [batch_size, height, width, 3]. '
                              'Currently it is %s' % str(image.shape))
+def get_compatible_shape(height, width, unit=16):
+    if height <= unit or width <= unit:
+        print('Height and width must both be at least %d. It is now: %d and %d. Setting the small ones to %d.'
+              %(unit, height, width, unit))
+        height = max(height, unit)
+        width = max(width, unit)
+
+    height = height - height % unit
+    width = width - width % unit
+    return height, width
