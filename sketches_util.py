@@ -114,6 +114,9 @@ def generate_training_image_pair(image1, image2, train = False, minimize=False, 
     image2 = np.asarray(image2, dtype)
 
     if train:
+        # To my understanding, the noise added serves the purpose of guiding the gradient and not letting it collapse
+        # to zero. Refer to the "Wasserstein gan" paper(https://arxiv.org/pdf/1701.07875v1.pdf) for more detailed
+        # explaination as to why usually noise is added to GAN training.
         noise = np.random.normal(0, 5 * np.random.rand(), image1.shape).astype(dtype)
         image1 += noise
         noise = np.random.normal(0, 5 * np.random.rand(), image2.shape).astype(dtype)

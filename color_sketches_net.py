@@ -13,12 +13,8 @@ import tensorflow as tf
 
 import adv_net_util
 import conv_util
-import colorful_img_network_connected_rgbbin_util
-import colorful_img_network_connected_util
-import colorful_img_network_mod_util
 import colorful_img_network_util
 import sketches_util
-import unet_both_util
 import lnet_util
 import unet_color_util
 import unet_util
@@ -45,8 +41,8 @@ COLORFUL_IMG_NUM_BIN = 6  # Temporary
 def color_sketches_net(height, width, iterations, batch_size, content_weight, tv_weight,
                        learning_rate, generator_network='unet',
                        use_adversarial_net = False, use_hint = False,
-                       adv_net_weight=1.0, weight_decay_lambda=1e-5 * 0,
-                       sketch_reconstruct_weight = 10.0 * 0.00000001, print_iterations=None,
+                       adv_net_weight=1.0, weight_decay_lambda=1e-5,
+                       sketch_reconstruct_weight = 10.0 / 255.0, print_iterations=None,
                        checkpoint_iterations=None, save_dir="model/", do_restore_and_generate=False,
                        do_restore_and_train=False, restore_from_noadv_to_adv = False, preprocessed_folder=None,
                        preprocessed_file_path_list = None,
