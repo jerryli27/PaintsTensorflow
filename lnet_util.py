@@ -17,7 +17,7 @@ CONV_UP_STRIDES=[2, 1, 2, 1, 2, 1, 2, 1, 1]
 
 
 # NOTE: There might be a small change in the dimension of the input vs. output if the size cannot be divided evenly by 4.
-def net(image, mirror_padding=False,reuse=False):
+def net(image, mirror_padding=False, trainable=False, reuse=False):
     # TODO: maybe delete mirror padding because it's causing back prop to complain.
     image_shape = image.get_shape().as_list()
     assert len(image_shape) == 4 and image_shape[1] >= 32 and image_shape[2] >= 32  # Otherwise the conv fails.
@@ -30,7 +30,8 @@ def net(image, mirror_padding=False,reuse=False):
             current_layer = conv_layer(prev_layer, num_filters=CONV_DOWN_NUM_FILTERS[i],
                                        filter_size=CONV_DOWN_KERNEL_SIZES[i], strides=CONV_DOWN_STRIDES[i],
                                        with_bias=True,
-                                       mirror_padding=mirror_padding, norm='batch_norm', name='conv_down_%d' %i, reuse=reuse)
+                                       mirror_padding=mirror_padding, norm='batch_norm', name='conv_down_%d' %i,
+                                       trainable=trainable, reuse=reuse)
             prev_layer = current_layer
             prev_layer_list.append(current_layer)
 
@@ -53,14 +54,16 @@ def net(image, mirror_padding=False,reuse=False):
                 current_layer = conv_tranpose_layer(concat_layer, num_filters=CONV_UP_NUM_FILTERS[i],
                                                     filter_size=CONV_UP_KERNEL_SIZES[i], strides=CONV_UP_STRIDES[i],
                                                     with_bias=True, elu=True if i != len(CONV_UP_NUM_FILTERS) else False,
-                                                    mirror_padding=mirror_padding, norm='batch_norm' if i != len(CONV_UP_NUM_FILTERS) else '', name='conv_up_%d' %i, reuse=reuse)
+                                                    mirror_padding=mirror_padding, norm='batch_norm' if i != len(CONV_UP_NUM_FILTERS) else '',
+                                                    trainable=trainable, name='conv_up_%d' %i, reuse=reuse)
                 # TODO: maybe I should change conv transpose to nn resize + conv layer. It's not causing trouble though.
                 prev_layer = current_layer
             else:
                 current_layer = conv_layer(prev_layer, num_filters=CONV_UP_NUM_FILTERS[i],
                                            filter_size=CONV_UP_KERNEL_SIZES[i], strides=CONV_UP_STRIDES[i],
                                            with_bias=True,
-                                           mirror_padding=mirror_padding, norm='batch_norm', name='conv_up_%d' %i, reuse=reuse)
+                                           mirror_padding=mirror_padding, norm='batch_norm', name='conv_up_%d' %i,
+                                           trainable=trainable, reuse=reuse)
                 prev_layer = current_layer
             conv_up_list.append(current_layer)
 
@@ -79,9 +82,10 @@ def net(image, mirror_padding=False,reuse=False):
                                                                        layer_to_be_concatenated_shape[2]])
         concat_layer = tf.concat(3, [prev_layer_list[-i - 1], prev_layer])
         final = conv_layer(concat_layer, num_filters=CONV_UP_NUM_FILTERS[-1],
-                   filter_size=CONV_UP_KERNEL_SIZES[-1], strides=CONV_UP_STRIDES[-1],
-                   with_bias=True, elu=False,
-                   mirror_padding=mirror_padding, norm='', name='conv_up_%d' %(len(CONV_UP_NUM_FILTERS) - 1), reuse=reuse)
+                           filter_size=CONV_UP_KERNEL_SIZES[-1], strides=CONV_UP_STRIDES[-1],
+                           with_bias=True, elu=False,
+                           mirror_padding=mirror_padding, norm='', name='conv_up_%d' %(len(CONV_UP_NUM_FILTERS) - 1),
+                           trainable=trainable, reuse=reuse)
         # Do sanity check.
         #
         # final = prev_layer

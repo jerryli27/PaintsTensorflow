@@ -11,7 +11,7 @@ WEIGHTS_INIT_STDEV = .1
 
 
 def conv_layer(net, num_filters, filter_size, strides, with_bias = True, elu=True, mirror_padding=True, one_hot_style_vector=None,
-               norm='instance_norm', dilation = 1, name='', reuse=False):
+               norm='instance_norm', dilation = 1, name='', trainable=True, reuse=False):
     # type: (tf.Tensor, int, int, int, bool, bool, bool, Union[None,tf.Tensor], str, int, str, bool) -> tf.Tensor
     """
     This function generates a convolution layer given the input layer and the output shape info.
@@ -31,7 +31,7 @@ def conv_layer(net, num_filters, filter_size, strides, with_bias = True, elu=Tru
     the output may change slightly if it cannot be divided evenly by the "strides".
     """
     with tf.variable_scope('conv_layer' + name, reuse=reuse):
-        weights_init, bias_init = conv_init_vars(net, num_filters, filter_size, with_bias=with_bias, name=name, reuse=reuse)
+        weights_init, bias_init = conv_init_vars(net, num_filters, filter_size, with_bias=with_bias, name=name, trainable=trainable, reuse=reuse)
         if mirror_padding:
             net = conv2d_mirror_padding(net, weights_init, bias_init, filter_size, stride=strides, dilation=dilation)
         else:
@@ -45,9 +45,9 @@ def conv_layer(net, num_filters, filter_size, strides, with_bias = True, elu=Tru
                 if bias_init:
                     net = tf.nn.bias_add(net, bias_init)
         if norm == 'instance_norm':
-            net = instance_norm(net, name=name, one_hot_style_vector=one_hot_style_vector, reuse=reuse)
+            net = instance_norm(net, name=name, one_hot_style_vector=one_hot_style_vector, trainable=trainable, reuse=reuse)
         elif norm == 'batch_norm':
-            net = batch_norm(net, name=name, reuse=reuse)
+            net = batch_norm(net, name=name, trainable=trainable, reuse=reuse)
         elif norm == '' or norm == None:
             pass
         else:
@@ -61,14 +61,14 @@ def conv_layer(net, num_filters, filter_size, strides, with_bias = True, elu=Tru
 
 
 def conv_tranpose_layer(net, num_filters, filter_size, strides, with_bias = True, elu=True, mirror_padding=True,
-                        one_hot_style_vector=None, norm='instance_norm', name='', reuse=False):
+                        one_hot_style_vector=None, norm='instance_norm', name='', trainable=True, reuse=False):
     # type: (tf.Tensor, int, int, int, bool, bool, bool, Union[None,tf.Tensor], str, str, bool) -> tf.Tensor
     """
     Same as the conv_layer function except that it is now doing convolution tranpose (aka deconvolution). For detailed
     documentation for each variable, please refer to that function.
     """
     with tf.variable_scope('conv_tranpose_layer' + name, reuse=reuse):
-        weights_init, bias_init = conv_init_vars(net, num_filters, filter_size, with_bias=with_bias, transpose=True, name=name, reuse=reuse)
+        weights_init, bias_init = conv_init_vars(net, num_filters, filter_size, with_bias=with_bias, transpose=True, name=name, trainable=trainable, reuse=reuse)
 
         batch_size, rows, cols, in_channels = [i.value for i in net.get_shape()]
         new_rows, new_cols = int(rows * strides), int(cols * strides)
@@ -84,9 +84,9 @@ def conv_tranpose_layer(net, num_filters, filter_size, strides, with_bias = True
                 net = tf.nn.bias_add(net, bias_init)
 
         if norm == 'instance_norm':
-            net = instance_norm(net, name=name, one_hot_style_vector=one_hot_style_vector, reuse=reuse)
+            net = instance_norm(net, name=name, one_hot_style_vector=one_hot_style_vector, trainable=trainable, reuse=reuse)
         elif norm == 'batch_norm':
-            net = batch_norm(net, name=name, reuse=reuse)
+            net = batch_norm(net, name=name, trainable=trainable, reuse=reuse)
         elif norm == '' or norm == None:
             pass
         else:
@@ -97,7 +97,7 @@ def conv_tranpose_layer(net, num_filters, filter_size, strides, with_bias = True
         return net
 
 
-def residual_block(net, filter_size=3, mirror_padding=True, name='', one_hot_style_vector=None, reuse=False):
+def residual_block(net, filter_size=3, mirror_padding=True, name='', one_hot_style_vector=None, trainable=True, reuse=False):
     # type: (tf.Tensor, int, bool, str, Union[None,tf.Tensor], bool) -> tf.Tensor
     """
     For meaning of each variable, please refer to the documentation in the "conv_layer" function. They're the same.
@@ -105,13 +105,13 @@ def residual_block(net, filter_size=3, mirror_padding=True, name='', one_hot_sty
     "Texture Networks: Feed-forward Synthesis of Textures and Stylized Images"
     """
     tmp = conv_layer(net, 128, filter_size, 1, mirror_padding=mirror_padding, name=name + '_first',
-                     one_hot_style_vector=one_hot_style_vector, reuse=reuse)
+                     one_hot_style_vector=one_hot_style_vector, trainable=trainable, reuse=reuse)
     return tf.add(net,
                   conv_layer(tmp, 128, filter_size, 1, mirror_padding=mirror_padding, name=name + '_second', elu=False,
-                             one_hot_style_vector=one_hot_style_vector, reuse=reuse))
+                             one_hot_style_vector=one_hot_style_vector, trainable=trainable, reuse=reuse))
 
 
-def instance_norm(net, name='', one_hot_style_vector=None, reuse=False):
+def instance_norm(net, name='', one_hot_style_vector=None, trainable=True, reuse=False):
     # type: (tf.Tensor, str, Union[None,tf.Tensor], bool) -> tf.Tensor
     """
     For meaning of each variable, please refer to the documentation in the "conv_layer" function. They're the same.
@@ -131,9 +131,9 @@ def instance_norm(net, name='', one_hot_style_vector=None, reuse=False):
         # NaN sometimes. It's probably a bug on tensorflow's side.
         sigma_sq = tf.abs(sigma_sq)
         shift_init = tf.zeros(var_shape)
-        shift = tf.get_variable('shift', initializer=shift_init)
+        shift = tf.get_variable('shift', initializer=shift_init, trainable=trainable)
         scale_init = tf.ones(var_shape)
-        scale = tf.get_variable('scale', initializer=scale_init)
+        scale = tf.get_variable('scale', initializer=scale_init, trainable=trainable)
         if one_hot_style_vector is not None:
             shift = tf.matmul(one_hot_style_vector, shift)
             scale = tf.matmul(one_hot_style_vector, scale)
@@ -142,7 +142,7 @@ def instance_norm(net, name='', one_hot_style_vector=None, reuse=False):
         return scale * normalized + shift
 
 
-def batch_norm(input_layer, name='', reuse=False):
+def batch_norm(input_layer, name='', trainable=True, reuse=False):
     # type: (tf.Tensor, str, bool) -> tf.Tensor
     """
     For meaning of each variable, please refer to the documentation in the "conv_layer" function. They're the same.
@@ -155,15 +155,15 @@ def batch_norm(input_layer, name='', reuse=False):
         variance = tf.abs(variance)
         variance_epsilon = 0.0000001
         num_channels = input_layer.get_shape().as_list()[3]
-        scale = tf.get_variable('scale', [num_channels], tf.float32, tf.random_uniform_initializer())
-        offset = tf.get_variable('offset', [num_channels], tf.float32, tf.constant_initializer())
+        scale = tf.get_variable('scale', [num_channels], tf.float32, tf.random_uniform_initializer(), trainable=trainable)
+        offset = tf.get_variable('offset', [num_channels], tf.float32, tf.constant_initializer(), trainable=trainable)
         # variance = tf.get_variable('variance', [num_channels], tf.float32, tf.random_uniform_initializer())
         # mean = tf.get_variable('mean', [num_channels], tf.float32, tf.constant_initializer())
         return_val = tf.nn.batch_normalization(input_layer, mean, variance, offset, scale, variance_epsilon, name=name)
         return return_val
 
 
-def conv_init_vars(net, out_channels, filter_size, with_bias = True, transpose=False, name='', reuse=False):
+def conv_init_vars(net, out_channels, filter_size, with_bias = True, transpose=False, name='', trainable=True, reuse=False):
     # type: (tf.Tensor, int, int, bool, bool, str, bool) -> Tuple[tf.Tensor,Union[tf.Tensor,None]]
     """
     For meaning of each variable, please refer to the documentation in the "conv_layer" function. They're the same.
@@ -179,11 +179,11 @@ def conv_init_vars(net, out_channels, filter_size, with_bias = True, transpose=F
         weights_initializer = tf.truncated_normal_initializer(stddev=WEIGHTS_INIT_STDEV)
 
         weights_init = tf.get_variable('weights_init', shape=weights_shape, dtype=tf.float32,
-                                       initializer=weights_initializer)
+                                       initializer=weights_initializer, trainable=trainable)
         if with_bias:
             bias_shape = [out_channels]
             bias_init =  tf.get_variable('bias_init', shape=bias_shape, dtype=tf.float32,
-                                       initializer=weights_initializer)
+                                       initializer=weights_initializer, trainable=trainable)
         else:
             bias_init = None
 
@@ -191,7 +191,7 @@ def conv_init_vars(net, out_channels, filter_size, with_bias = True, transpose=F
         return weights_init, bias_init
 
 
-def fully_connected(net, out_channels, activation_fn=None, name='', reuse=False):
+def fully_connected(net, out_channels, activation_fn=None, name='', trainable=True, reuse=False):
     # type: (tf.Tensor, int, Union[None,Callable[[tf.Tensor], tf.Tensor]], str, bool) -> tf.Tensor
     with tf.variable_scope('fully_connected_' + name, reuse=reuse):
         # Fully connected layer
@@ -203,11 +203,11 @@ def fully_connected(net, out_channels, activation_fn=None, name='', reuse=False)
         weights_init_stdv = math.sqrt(1.0 / (rows * cols * in_channels))
         weights_initializer = tf.truncated_normal_initializer(stddev=weights_init_stdv)
         weights_init = tf.get_variable('weights_init', shape=weights_shape, dtype=tf.float32,
-                                       initializer=weights_initializer)
+                                       initializer=weights_initializer, trainable=trainable)
 
         bias_shape = [out_channels]
         bias_init = tf.get_variable('bias_init', shape=bias_shape, dtype=tf.float32,
-                                    initializer=tf.constant_initializer())
+                                    initializer=tf.constant_initializer(), trainable=trainable)
 
         fc1 = tf.reshape(net, [-1, rows * cols * in_channels])
         fc1 = tf.nn.bias_add(tf.matmul(fc1, weights_init), bias_init)

@@ -46,7 +46,7 @@ def color_sketches_net(height, width, iterations, batch_size, content_weight, tv
                        learning_rate, generator_network='unet',
                        use_adversarial_net = False, use_hint = False,
                        adv_net_weight=1.0, weight_decay_lambda=1e-5 * 0,
-                       sketch_reconstruct_weight = 10.0 * 0.0 , print_iterations=None,
+                       sketch_reconstruct_weight = 10.0 * 0.00000001, print_iterations=None,
                        checkpoint_iterations=None, save_dir="model/", do_restore_and_generate=False,
                        do_restore_and_train=False, restore_from_noadv_to_adv = False, preprocessed_folder=None,
                        preprocessed_file_path_list = None,
@@ -96,17 +96,17 @@ def color_sketches_net(height, width, iterations, batch_size, content_weight, tv
             if generator_network == 'unet_color':
                 assert input_mode == 'sketch' or (input_mode == 'raw_sketch' and do_restore_and_generate)
                 color_output = unet_color_util.net(input_concatenated)
-                sketch_output = lnet_util.net((color_output - 128) / 128)  # This is the reconstructed sketch from the color output.
+                sketch_output = lnet_util.net((color_output - 128) / 128) * 255  # This is the reconstructed sketch from the color output.
             elif generator_network == 'lnet':
                 assert input_mode == 'color' and not use_adversarial_net and not use_hint
                 # This step is not necessary but kept to be in sync with chainer repo.
                 input_concatenated = (input_concatenated - 128 ) / 128
-                color_output = lnet_util.net(input_concatenated)
+                color_output = lnet_util.net(input_concatenated, trainable=True) * 255
             elif generator_network == 'backprop':
                 assert input_mode == 'sketch'
                 color_output = tf.get_variable('backprop_input_var',shape=[batch_size, input_shape[1], input_shape[2], 3],
                                                    initializer=tf.random_normal_initializer(mean=128,stddev=10.0)) + 0 * input_images
-                sketch_output = lnet_util.net((color_output - 128) / 128)  # This is the reconstructed sketch from the color output.
+                sketch_output = lnet_util.net((color_output - 128) / 128) * 255  # This is the reconstructed sketch from the color output.
             else:
                 # TODO: change the error message.
                 raise AssertionError("Please input a valid generator network name. Possible options are: TODO. Got: %s"
@@ -116,17 +116,17 @@ def color_sketches_net(height, width, iterations, batch_size, content_weight, tv
             if generator_network == 'unet_color':
                 assert input_mode == 'sketch' or (input_mode == 'raw_sketch' and do_restore_and_generate)
                 color_output = unet_color_util.net(input_images)
-                sketch_output = lnet_util.net((color_output - 128) / 128)  # This is the reconstructed sketch from the color output.
+                sketch_output = lnet_util.net((color_output - 128) / 128) * 255  # This is the reconstructed sketch from the color output.
             elif generator_network == 'lnet':
                 assert input_mode == 'color' and not use_adversarial_net and not use_hint
                 # This step is not necessary but kept to be in sync with chainer repo.
                 input_images = (input_images - 128 ) / 128
-                color_output = lnet_util.net(input_images)
+                color_output = lnet_util.net(input_images, trainable=True) * 255
             elif generator_network == 'backprop':
                 assert input_mode == 'sketch'
                 color_output = tf.get_variable('backprop_input_var',shape=[batch_size, input_shape[1], input_shape[2], 3],
                                                    initializer=tf.random_normal_initializer()) + 0 * input_images
-                sketch_output = lnet_util.net((color_output - 128) / 128)  # This is the reconstructed sketch from the color output.
+                sketch_output = lnet_util.net((color_output - 128) / 128) * 255  # This is the reconstructed sketch from the color output.
             else:
                 raise AssertionError("Please input a valid generator network name. Possible options are: TODO. Got: %s"
                                      % (generator_network))
@@ -148,7 +148,7 @@ def color_sketches_net(height, width, iterations, batch_size, content_weight, tv
             color_loss_non_adv = tf.reduce_mean(tf.abs(color_output - color_expected_output))
             weight_decay_loss_non_adv = conv_util.weight_decay_loss(scope='unet') * weight_decay_lambda
             # This is only for unet_color, not for training the lnet,
-            sketch_expected_output = lnet_util.net((color_expected_output - 128) / 128, reuse=True)
+            sketch_expected_output = lnet_util.net((color_expected_output - 128) / 128, reuse=True) * 255
             sketch_reconstruct_loss_non_adv = tf.reduce_mean(tf.abs(sketch_output - sketch_expected_output)) * sketch_reconstruct_weight
 
             generator_loss_non_adv = color_loss_non_adv + weight_decay_loss_non_adv + sketch_reconstruct_loss_non_adv
@@ -299,9 +299,9 @@ def color_sketches_net(height, width, iterations, batch_size, content_weight, tv
                                                                shape=[batch_size, input_shape[1], input_shape[2],
                                                                       3 if generator_network != 'lnet' else 1],
                                                                name='color_expected_output')
-                        sketch_expected_output = lnet_util.net((color_expected_output - 128) / 128, reuse=True)
+                        sketch_expected_output = lnet_util.net((color_expected_output - 128) / 128, reuse=True) * 255
                         content_image_yuv = cv2.cvtColor(np.asarray(content_image[0,...], dtype=np.uint8), cv2.COLOR_RGB2YUV)
-                        image_sketches = sketch_expected_output.eval(feed_dict={color_expected_output:np.array([content_image_yuv])}) * 255
+                        image_sketches = sketch_expected_output.eval(feed_dict={color_expected_output:np.array([content_image_yuv])})
 
                         # image_sketches = sketches_util.image_to_sketch(content_image)
                         # image_sketches = np.expand_dims(image_sketches, axis=3)
@@ -343,8 +343,7 @@ def color_sketches_net(height, width, iterations, batch_size, content_weight, tv
                         generated_image = np.array([cv2.cvtColor(np.asarray(generated_bw[0,...], dtype=np.uint8), cv2.COLOR_YUV2RGB)])
                         # generated_image = image_sketches[...,:1]
                     else:
-                        # This step is not necessary but kept to be in sync with chainer repo.
-                        generated_image = generated_bw * 255
+                        generated_image = generated_bw
                     # # TODO: finding bug. Remove later.
                     # generated_image = image_sketches[..., :1]
                     yield (iterator, generated_image)
