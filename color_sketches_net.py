@@ -149,8 +149,6 @@ def color_sketches_net(height, width, iterations, batch_size, content_weight, tv
             sketch_reconstruct_loss_non_adv = tf.reduce_mean(tf.abs(sketch_output - sketch_expected_output)) * sketch_reconstruct_weight
 
             generator_loss_non_adv = color_loss_non_adv + weight_decay_loss_non_adv + sketch_reconstruct_loss_non_adv
-            # TODO: add loss from sketch. That is, convert both generated and real colored image into sketches and compute their mean difference.
-
             # tv_loss = tv_weight * total_variation(image)
 
             if use_adversarial_net:
@@ -334,8 +332,6 @@ def color_sketches_net(height, width, iterations, batch_size, content_weight, tv
 
                     if use_hint:
                         image_hint = hint_imread(test_img_hint, (input_shape[1], input_shape[2]))
-                        # TODO: testing, delete later.
-                        # image_hint = np.repeat(image_sketches[..., :1],3,axis=3)[0,...]
                         feed_dict[input_hint] = np.array([image_hint])
 
                     generated_bw = color_output.eval(feed_dict=feed_dict)
@@ -349,8 +345,6 @@ def color_sketches_net(height, width, iterations, batch_size, content_weight, tv
                         # generated_image = image_sketches[...,:1]
                     else:
                         generated_image = generated_bw
-                    # # TODO: finding bug. Remove later.
-                    # generated_image = image_sketches[..., :1]
                     yield (iterator, generated_image)
 
             else:
@@ -377,7 +371,6 @@ def color_sketches_net(height, width, iterations, batch_size, content_weight, tv
                 # Do Training.
                 iter_start = 0
                 if do_restore_and_train:
-                    # TODO: add the code to load two checkpoints for the both network... or do something like that.
                     ckpt = tf.train.get_checkpoint_state(save_dir)
                     if ckpt and ckpt.model_checkpoint_path:
                         saver.restore(sess, ckpt.model_checkpoint_path)
@@ -495,7 +488,7 @@ def color_sketches_net(height, width, iterations, batch_size, content_weight, tv
                         #     raise AssertionError('Input mode error.')
 
                     # Do some processing...
-                    image_sketches, content_pre_list = sketches_util.generate_training_batch(image_sketches, content_pre_list, train=False)  # TODO: change to true after debugging phase.
+                    image_sketches, content_pre_list = sketches_util.generate_training_batch(image_sketches, content_pre_list, train=True)
                     if generator_network == 'lnet':
                         feed_dict = {color_expected_output: image_sketches[...,:1]}
                     else:
