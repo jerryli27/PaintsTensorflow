@@ -9,6 +9,7 @@ from sys import stderr
 import copy
 import cv2
 import scipy
+import time
 import tensorflow as tf
 
 import adv_net_util
@@ -213,10 +214,17 @@ def color_sketches_net(height, width, iterations, batch_size, content_weight, tv
                 g_sum = merge_summary([generator_loss_l2_sum, generator_loss_weight_decay_sum, sketch_reconstruct_loss_non_adv_sum])
 
 
-            def print_progress(i, feed_dict, adv_feed_dict, last=False):
+            def print_progress(i, feed_dict, adv_feed_dict, start_time, total_iterations, last=False):
                 stderr.write(
                     'Iteration %d/%d\n' % (i + 1, iterations))
                 if last or (print_iterations and i % print_iterations == 0):
+                    current_time = time.time()
+                    if i > 0:
+                        seconds_passed = current_time - start_time
+                        seconds_remaining = float(total_iterations - i) / i * seconds_passed
+                        m, s = divmod(seconds_remaining, 60)
+                        h, m = divmod(m, 60)
+                        stderr.write('Estimated time remaining: "%d:%02d:%02d"' % (h, m, s))
                     stderr.write('Learning rate %f\n' % (learning_rate_var.eval()))
                     # TODO: change this
                     stderr.write(' generator l2 loss: %g\n' % generator_loss_non_adv.eval(feed_dict=feed_dict))
@@ -238,6 +246,7 @@ def color_sketches_net(height, width, iterations, batch_size, content_weight, tv
         # It used to track and record only the best one with lowest loss. This is no longer necessary and I think
         # just recording the one generated at each round will make it easier to debug.
         best_image = None
+        start_time = time.time()
         if restore_from_noadv_to_adv and use_adversarial_net:
             saver = tf.train.Saver(generator_all_var + [learning_rate_var])
         else:
@@ -517,7 +526,7 @@ def color_sketches_net(height, width, iterations, batch_size, content_weight, tv
                         adv_feed_dict[adv_net_input] = content_pre_list
 
                         # TEST printing before training
-                        print_progress(i, feed_dict=feed_dict, adv_feed_dict=adv_feed_dict, last=last_step)
+                        print_progress(i, feed_dict=feed_dict, adv_feed_dict=adv_feed_dict, start_time=start_time, total_iterations=iterations, last=last_step)
 
 
                         # Update D network
@@ -532,13 +541,13 @@ def color_sketches_net(height, width, iterations, batch_size, content_weight, tv
 
                     else:
                         adv_feed_dict = None
-                        print_progress(i, feed_dict=feed_dict, adv_feed_dict=adv_feed_dict, last=last_step)
+                        print_progress(i, feed_dict=feed_dict, adv_feed_dict=adv_feed_dict, start_time=start_time, total_iterations=iterations, last=last_step)
 
                         _, summary_str = sess.run([generator_train_step, g_sum], feed_dict=feed_dict)
                         summary_writer.add_summary(summary_str,i)
 
                     # TEST printing after training
-                    print_progress(i, feed_dict=feed_dict, adv_feed_dict=adv_feed_dict, last=last_step)
+                    print_progress(i, feed_dict=feed_dict, adv_feed_dict=adv_feed_dict, start_time=start_time, total_iterations=iterations, last=last_step)
 
                     if (checkpoint_iterations and i % checkpoint_iterations == 0) or last_step:
                         saver.save(sess, save_dir + 'model.ckpt', global_step=i)
