@@ -269,9 +269,10 @@ def weight_decay_loss(scope=None, weight_var_name = 'weights_init'):
     else:
         all_var = tf.get_collection(tf.GraphKeys.VARIABLES, scope=scope)
     # weight_var = []
-    loss = 0
+    loss = []
     for var in all_var:
         if weight_var_name in var.name:
             # weight_var.append(var)
-            loss += tf.nn.l2_loss(var)
-    return loss
+            loss.append(tf.nn.l2_loss(var))
+    loss_var = tf.reduce_sum(tf.pack(loss))
+    return loss_var

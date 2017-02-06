@@ -6,6 +6,7 @@ I first saw it at http://qiita.com/taizan/items/cf77fd37ec3a0bef5d9d
 # import gtk.gdk
 from sys import stderr
 
+import copy
 import cv2
 import scipy
 import tensorflow as tf
@@ -44,8 +45,8 @@ COLORFUL_IMG_NUM_BIN = 6  # Temporary
 def color_sketches_net(height, width, iterations, batch_size, content_weight, tv_weight,
                        learning_rate, generator_network='unet',
                        use_adversarial_net = False, use_hint = False,
-                       adv_net_weight=1.0, weight_decay_lambda=1e-5,
-                       sketch_reconstruct_weight = 10.0 , print_iterations=None,
+                       adv_net_weight=1.0, weight_decay_lambda=1e-5 * 0,
+                       sketch_reconstruct_weight = 10.0 * 0.0 , print_iterations=None,
                        checkpoint_iterations=None, save_dir="model/", do_restore_and_generate=False,
                        do_restore_and_train=False, restore_from_noadv_to_adv = False, preprocessed_folder=None,
                        preprocessed_file_path_list = None,
@@ -224,7 +225,8 @@ def color_sketches_net(height, width, iterations, batch_size, content_weight, tv
                     # TODO: change this
                     stderr.write(' generator l2 loss: %g\n' % generator_loss_non_adv.eval(feed_dict=feed_dict))
                     stderr.write('       sketch loss: %g\n' % sketch_reconstruct_loss_non_adv.eval(feed_dict=feed_dict))
-                    stderr.write('  w decay gen loss: %g\n' % weight_decay_loss_non_adv.eval(feed_dict=feed_dict))
+                    if not generator_network == 'backprop':
+                        stderr.write('  w decay gen loss: %g\n' % weight_decay_loss_non_adv.eval(feed_dict=feed_dict))
                     # if generator_network == 'unet_both' or generator_network == 'colorful_img_both':
                     #     stderr.write('           bw loss: %g\n' % color_loss_non_adv.eval(feed_dict=feed_dict))
                         # stderr.write('           ab loss: %g\n' % ab_loss_non_adv.eval(feed_dict=feed_dict))
@@ -298,7 +300,7 @@ def color_sketches_net(height, width, iterations, batch_size, content_weight, tv
                                                                       3 if generator_network != 'lnet' else 1],
                                                                name='color_expected_output')
                         sketch_expected_output = lnet_util.net((color_expected_output - 128) / 128, reuse=True)
-                        content_image_yuv = cv2.cvtColor(content_image[0,...], cv2.COLOR_RGB2YUV)
+                        content_image_yuv = cv2.cvtColor(np.asarray(content_image[0,...], dtype=np.uint8), cv2.COLOR_RGB2YUV)
                         image_sketches = sketch_expected_output.eval(feed_dict={color_expected_output:np.array([content_image_yuv])}) * 255
 
                         # image_sketches = sketches_util.image_to_sketch(content_image)
@@ -343,6 +345,8 @@ def color_sketches_net(height, width, iterations, batch_size, content_weight, tv
                     else:
                         # This step is not necessary but kept to be in sync with chainer repo.
                         generated_image = generated_bw * 255
+                    # # TODO: finding bug. Remove later.
+                    # generated_image = image_sketches[..., :1]
                     yield (iterator, generated_image)
 
             else:
@@ -487,7 +491,7 @@ def color_sketches_net(height, width, iterations, batch_size, content_weight, tv
                         #     raise AssertionError('Input mode error.')
 
                     # Do some processing...
-                    image_sketches, content_pre_list = sketches_util.generate_training_batch(image_sketches, content_pre_list, train=False)
+                    image_sketches, content_pre_list = sketches_util.generate_training_batch(image_sketches, content_pre_list, train=False)  # TODO: change to true after debugging phase.
                     if generator_network == 'lnet':
                         feed_dict = {color_expected_output: image_sketches[...,:1]}
                     else:
@@ -511,9 +515,11 @@ def color_sketches_net(height, width, iterations, batch_size, content_weight, tv
 
 
                     if use_adversarial_net:
-                        adv_feed_dict = {input_images:image_sketches, adv_net_input: content_pre_list}
-                        if use_hint:
-                            adv_feed_dict[input_hint] = image_hint
+                        # adv_feed_dict = {input_images:image_sketches, adv_net_input: content_pre_list}
+                        # if use_hint:
+                        #     adv_feed_dict[input_hint] = image_hint
+                        adv_feed_dict = copy.copy(feed_dict)
+                        adv_feed_dict[adv_net_input] = content_pre_list
 
                         # TEST printing before training
                         print_progress(i, feed_dict=feed_dict, adv_feed_dict=adv_feed_dict, last=last_step)

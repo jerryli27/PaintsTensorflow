@@ -5,7 +5,7 @@
 
 from general_util import *
 
-learning_rate=5 # if colorful_img model, the learning rate the paper was using was 3 * 10^-5. They did not
+learning_rate=0.01 # if colorful_img model, the learning rate the paper was using was 3 * 10^-5. They did not
 # saytheir batch size.
 # iterations=800000# 800000
 epochs = 1000
@@ -14,15 +14,15 @@ content_weight=5
 checkpoint_iterations=20
 height = 128
 width = 128
-generator_network='unet_color' # 'unet_color'
+generator_network= 'unet_color' # 'backprop' #
 input_mode ='sketch' # 'sketch'
 output_mode = 'rgb'
 print_iteration = 1
 do_restore_and_train = False  # True
 do_restore_and_generate = False
-use_adversarial_net = True
+use_adversarial_net = False
 # use_adversarial_net_real = True
-use_hint = True # True
+use_hint = False # True
 test_img = '20750360_p0_128.png'#u'/home/ubuntu/pixiv/pixiv_testing/骨董屋・三千世界の女主人_12746957.jpg'
 # #'source_compressed/chicago.jpg'
 test_img_hint = '20750360_p0_128_hint.png'

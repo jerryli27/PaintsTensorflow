@@ -17,18 +17,18 @@ epochs = 1000
 batch_size=1  # The larger the better.
 content_weight=5
 checkpoint_iterations=20
-height = 176 * 2#int(1.0 * 3506 / 2452  * 128)# int(1.0 * 600 / 445  * 128)
-width = 128 * 2
+height = 128*2#int(1.0 * 3506 / 2452  * 128)# int(1.0 * 600 / 445  * 128)
+width = 128*2
 generator_network= 'unet_color' #'lnet' #
-input_mode = 'raw_sketch' # 'sketch' # 'color' #
+input_mode = 'sketch' #'color' #'raw_sketch' #
 output_mode = 'rgb'
 print_iteration = 1
 do_restore_and_train = False  # True
 do_restore_and_generate = True
 use_adversarial_net = False
 # use_adversarial_net_real = True
-use_hint = True
-test_img = u'"/home/xor/pixiv_images/color/Rella (163536)/14080177_p0 - らくがき.jpg"'.encode('utf-8') # '20750360_p0_128.png' # #u'/home/ubuntu/pixiv/pixiv_testing/骨董屋・三千世界の女主人_12746957.jpg'
+use_hint = True # False #
+test_img = u'"/home/xor/pixiv_images/test_images/Rella (163536)/20750360_p0 - あの夏を忘れない_sketch.jpg"'.encode('utf-8') # u'"/home/xor/pixiv_images/color/Rella (163536)/14080177_p0 - らくがき.jpg"'.encode('utf-8') # '20750360_p0_128.png' # #u'/home/ubuntu/pixiv/pixiv_testing/骨董屋・三千世界の女主人_12746957.jpg'
 # #'source_compressed/chicago.jpg'
 test_img_hint = '20750360_p0_128_hint.png'
 
